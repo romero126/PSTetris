@@ -8,6 +8,18 @@ namespace PSTetris.Rendering
     {
         public static bool DetectSixelSupport()
         {
+            // Try DA1 probe first — the most reliable method since it asks
+            // the terminal directly whether it supports Sixel (attribute 4).
+            if (!Console.IsInputRedirected && !Console.IsOutputRedirected)
+            {
+                bool? probeResult = ProbeDA1();
+                if (probeResult.HasValue)
+                    return probeResult.Value;
+            }
+
+            // DA1 probe was inconclusive (timeout / no response).
+            // Fall back to environment-variable heuristics.
+
             // Known Sixel-capable terminals
             string termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "";
 
@@ -22,27 +34,32 @@ namespace PSTetris.Rendering
             if (termProgram.IndexOf("contour", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
 
-            // Known Sixel-incapable terminals
+            // Windows Terminal supports Sixel (since v1.22)
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION")))
+                return true;
+
+            // VSCode integrated terminal supports Sixel (xterm.js)
             if (termProgram.IndexOf("vscode", StringComparison.OrdinalIgnoreCase) >= 0)
-                return false;
+                return true;
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VSCODE_GIT_ASKPASS_MAIN")))
+                return true;
+
+            // Known Sixel-incapable terminals
             if (termProgram.IndexOf("Apple_Terminal", StringComparison.OrdinalIgnoreCase) >= 0)
                 return false;
 
-            // Windows Terminal does not support Sixel
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION")))
-                return false;
-
-            // DA1 probe
-            return ProbeDA1();
+            return false;
         }
 
-        private static bool ProbeDA1()
+        /// <summary>
+        /// Sends a DA1 query (ESC[c) and checks for Sixel attribute (4).
+        /// Returns true/false if a definitive answer is obtained,
+        /// or null if the probe was inconclusive (no response / timeout).
+        /// </summary>
+        private static bool? ProbeDA1()
         {
             try
             {
-                if (Console.IsInputRedirected || Console.IsOutputRedirected)
-                    return false;
-
                 // Flush pending input
                 while (Console.KeyAvailable)
                     Console.ReadKey(intercept: true);
@@ -72,6 +89,10 @@ namespace PSTetris.Rendering
 
                 string resp = response.ToString();
 
+                // No response at all — probe inconclusive
+                if (resp.Length == 0)
+                    return null;
+
                 int qMark = resp.IndexOf('?');
                 int cEnd = resp.LastIndexOf('c');
                 if (qMark < 0 || cEnd <= qMark) return false;
@@ -87,7 +108,7 @@ namespace PSTetris.Rendering
             }
             catch
             {
-                return false;
+                return null;
             }
         }
     }
