@@ -99,23 +99,34 @@ namespace PSTetris.Rendering
             }
         }
 
-        public void RenderGameOver(GameState state)
+        public bool RenderGameOver(GameState state)
         {
-            string msg1 = "  GAME OVER  ";
-            string msg2 = string.Format("  Score: {0,-6}", state.Score);
-            string msg3 = "  Any key...  ";
-            int midRow = _boardHeight / 2 - 1;
-            int startCol = (_boardWidth * 2 - msg1.Length) / 2 + 1;
+            string msg1 = "  GAME OVER   ";
+            string msg2 = string.Format("  Score: {0,-7}", state.Score);
+            string msg3 = "  R: Restart  ";
+            string msg4 = "  Q: Quit     ";
+            int midRow = _boardHeight / 2 - 2;
+            int maxLen = msg1.Length;
+            int startCol = (_boardWidth * 2 - maxLen) / 2 + 1;
 
             Console.SetCursorPosition(startCol, midRow);
-            Console.Write("\x1b[97;41m" + msg1 + TetrisColors.AnsiReset);
+            Console.Write("\x1b[97;41m" + msg1.PadRight(maxLen) + TetrisColors.AnsiReset);
             Console.SetCursorPosition(startCol, midRow + 1);
-            Console.Write("\x1b[97;41m" + msg2 + TetrisColors.AnsiReset);
+            Console.Write("\x1b[97;41m" + msg2.PadRight(maxLen) + TetrisColors.AnsiReset);
             Console.SetCursorPosition(startCol, midRow + 2);
-            Console.Write("\x1b[97;41m" + msg3 + TetrisColors.AnsiReset);
+            Console.Write("\x1b[97;41m" + "".PadRight(maxLen) + TetrisColors.AnsiReset);
+            Console.SetCursorPosition(startCol, midRow + 3);
+            Console.Write("\x1b[97;41m" + msg3.PadRight(maxLen) + TetrisColors.AnsiReset);
+            Console.SetCursorPosition(startCol, midRow + 4);
+            Console.Write("\x1b[97;41m" + msg4.PadRight(maxLen) + TetrisColors.AnsiReset);
 
             while (Console.KeyAvailable) Console.ReadKey(intercept: true);
-            Console.ReadKey(intercept: true);
+            while (true)
+            {
+                var key = Console.ReadKey(intercept: true).Key;
+                if (key == ConsoleKey.R) return true;
+                if (key == ConsoleKey.Q || key == ConsoleKey.Escape) return false;
+            }
         }
 
         public void Cleanup()

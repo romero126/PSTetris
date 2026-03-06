@@ -45,47 +45,67 @@ namespace PSTetris
 
             try
             {
-                _next = new Tetromino(Tetromino.RandomType(_rng));
-                SpawnPiece();
-                if (_gameOver) return;
-
-                _renderer.RenderInfo(BuildGameState());
-                _renderer.RenderFrame(BuildGameState());
-
-                var nextFall = DateTime.UtcNow.AddMilliseconds(FallInterval);
-
-                while (!_gameOver)
+                bool restart = true;
+                while (restart)
                 {
-                    // --- Input ---
-                    while (Console.KeyAvailable)
+                    ResetState();
+                    _next = new Tetromino(Tetromino.RandomType(_rng));
+                    SpawnPiece();
+                    if (_gameOver) return;
+
+                    _renderer.RenderInfo(BuildGameState());
+                    _renderer.RenderFrame(BuildGameState());
+
+                    var nextFall = DateTime.UtcNow.AddMilliseconds(FallInterval);
+
+                    while (!_gameOver)
                     {
-                        var k = Console.ReadKey(intercept: true);
-                        HandleInput(k.Key, ref nextFall);
+                        // --- Input ---
+                        while (Console.KeyAvailable)
+                        {
+                            var k = Console.ReadKey(intercept: true);
+                            HandleInput(k.Key, ref nextFall);
+                            if (_gameOver) break;
+                        }
+
                         if (_gameOver) break;
-                    }
 
-                    if (_gameOver) break;
+                        // --- Gravity ---
+                        if (!_paused && DateTime.UtcNow >= nextFall)
+                        {
+                            if (!TryMove(1, 0))
+                                LockPiece();
+                            else
+                                nextFall = DateTime.UtcNow.AddMilliseconds(FallInterval);
+                        }
 
-                    // --- Gravity ---
-                    if (!_paused && DateTime.UtcNow >= nextFall)
-                    {
-                        if (!TryMove(1, 0))
-                            LockPiece();
-                        else
-                            nextFall = DateTime.UtcNow.AddMilliseconds(FallInterval);
+                        _renderer.RenderFrame(BuildGameState());
+                        Thread.Sleep(16);   // ~60 fps cap
                     }
 
                     _renderer.RenderFrame(BuildGameState());
-                    Thread.Sleep(16);   // ~60 fps cap
-                }
+                    restart = _renderer.RenderGameOver(BuildGameState());
 
-                _renderer.RenderFrame(BuildGameState());
-                _renderer.RenderGameOver(BuildGameState());
+                    if (restart)
+                        _renderer.Initialize(Width, Height);
+                }
             }
             finally
             {
                 _renderer.Cleanup();
             }
+        }
+
+        private void ResetState()
+        {
+            Array.Clear(_board, 0, _board.Length);
+            _current = null;
+            _next = null;
+            _score = 0;
+            _level = 1;
+            _lines = 0;
+            _gameOver = false;
+            _paused = false;
         }
 
         // ——— Game state snapshot for renderer ———

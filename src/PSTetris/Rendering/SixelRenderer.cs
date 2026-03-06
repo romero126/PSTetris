@@ -178,12 +178,12 @@ namespace PSTetris.Rendering
                 _infoDirty = true;
         }
 
-        public void RenderGameOver(GameState state)
+        public bool RenderGameOver(GameState state)
         {
             int boardInnerW = _boardWidth * CellSize;
             int boardInnerH = _boardHeight * CellSize;
             int overlayW = boardInnerW - 20;
-            int overlayH = 50;
+            int overlayH = 80;
             int ox = BorderPx + 10;
             int oy = BorderPx + (boardInnerH - overlayH) / 2;
 
@@ -208,13 +208,29 @@ namespace PSTetris.Rendering
             BitmapFont.DrawString(_buffer, ox + (overlayW - tw2) / 2, oy + 24,
                                   msg2, TetrisColors.GameOverText, FontScale);
 
+            // Restart/Quit prompt
+            string msg3 = "R: Restart";
+            int tw3 = BitmapFont.MeasureWidth(msg3, FontScale);
+            BitmapFont.DrawString(_buffer, ox + (overlayW - tw3) / 2, oy + 42,
+                                  msg3, TetrisColors.GameOverText, FontScale);
+
+            string msg4 = "Q: Quit   ";
+            int tw4 = BitmapFont.MeasureWidth(msg4, FontScale);
+            BitmapFont.DrawString(_buffer, ox + (overlayW - tw4) / 2, oy + 58,
+                                  msg4, TetrisColors.GameOverText, FontScale);
+
             _buffer.MarkFullDirty();
             Console.SetCursorPosition(0, 0);
             Console.Write(_encoder.Encode(_buffer, 0, 0, _totalPixelW, _totalPixelH, _bgReg));
             _buffer.ResetDirty();
 
             while (Console.KeyAvailable) Console.ReadKey(intercept: true);
-            Console.ReadKey(intercept: true);
+            while (true)
+            {
+                var key = Console.ReadKey(intercept: true).Key;
+                if (key == ConsoleKey.R) return true;
+                if (key == ConsoleKey.Q || key == ConsoleKey.Escape) return false;
+            }
         }
 
         public void Cleanup()
