@@ -7,13 +7,32 @@ namespace PSTetris.Rendering
     {
         private int _boardWidth;
         private int _boardHeight;
+        private int _scale = 1;
         private int _infoCol;
+        private bool _altScreenActive;
 
         public void Initialize(int boardWidth, int boardHeight)
         {
             _boardWidth = boardWidth;
             _boardHeight = boardHeight;
-            _infoCol = boardWidth * 2 + 3;
+
+            // Compute scale from available terminal size
+            int availCols = Console.WindowWidth;
+            int availRows = Console.WindowHeight;
+
+            // Info panel needs ~18 columns; border = 2; gap = 1
+            int maxScaleW = (availCols - 2 - 1 - 18) / (boardWidth * 2);
+            int maxScaleH = (availRows - 2) / boardHeight;
+            _scale = Math.Max(1, Math.Min(maxScaleW, maxScaleH));
+
+            _infoCol = boardWidth * 2 * _scale + 3;
+
+            // Switch to alternate screen buffer on first init
+            if (!_altScreenActive)
+            {
+                Console.Write("\x1b[?1049h");
+                _altScreenActive = true;
+            }
 
             Console.CursorVisible = false;
             Console.Clear();
@@ -22,23 +41,29 @@ namespace PSTetris.Rendering
 
         public void RenderFrame(GameState state)
         {
-            var sb = new StringBuilder(_boardWidth * 4 + 4);
+            var sb = new StringBuilder(_boardWidth * 2 * _scale + 4);
             for (int r = 0; r < _boardHeight; r++)
             {
-                Console.SetCursorPosition(1, r + 1);
-                sb.Clear();
-                for (int c = 0; c < _boardWidth; c++)
+                for (int sy = 0; sy < _scale; sy++)
                 {
-                    int v = state.Display[r, c];
-                    if (v > 0)
-                        sb.Append(TetrisColors.AnsiColors[v]).Append("\u2588\u2588");
-                    else if (v == -1)
-                        sb.Append(TetrisColors.AnsiGhost).Append("\u2591\u2591");
-                    else
-                        sb.Append(TetrisColors.AnsiReset).Append("  ");
+                    Console.SetCursorPosition(1, r * _scale + sy + 1);
+                    sb.Clear();
+                    for (int c = 0; c < _boardWidth; c++)
+                    {
+                        int v = state.Display[r, c];
+                        if (v > 0)
+                            sb.Append(TetrisColors.AnsiColors[v])
+                              .Append(new string('\u2588', 2 * _scale));
+                        else if (v == -1)
+                            sb.Append(TetrisColors.AnsiGhost)
+                              .Append(new string('\u2591', 2 * _scale));
+                        else
+                            sb.Append(TetrisColors.AnsiReset)
+                              .Append(new string(' ', 2 * _scale));
+                    }
+                    sb.Append(TetrisColors.AnsiReset);
+                    Console.Write(sb);
                 }
-                sb.Append(TetrisColors.AnsiReset);
-                Console.Write(sb);
             }
         }
 
@@ -94,7 +119,9 @@ namespace PSTetris.Rendering
 
             if (state.Paused)
             {
-                Console.SetCursorPosition(3, _boardHeight / 2);
+                int midCol = 1 + (_boardWidth * _scale - 9);
+                int midRow = _boardHeight * _scale / 2;
+                Console.SetCursorPosition(Math.Max(1, midCol), midRow + 1);
                 Console.Write("\x1b[97;44m   ** PAUSED **   " + TetrisColors.AnsiReset);
             }
         }
@@ -105,9 +132,11 @@ namespace PSTetris.Rendering
             string msg2 = string.Format("  Score: {0,-7}", state.Score);
             string msg3 = "  R: Restart  ";
             string msg4 = "  Q: Quit     ";
-            int midRow = _boardHeight / 2 - 2;
+            int boardRows = _boardHeight * _scale;
+            int boardCols = _boardWidth * 2 * _scale;
+            int midRow = boardRows / 2 - 2 + 1;
             int maxLen = msg1.Length;
-            int startCol = (_boardWidth * 2 - maxLen) / 2 + 1;
+            int startCol = (boardCols - maxLen) / 2 + 1;
 
             Console.SetCursorPosition(startCol, midRow);
             Console.Write("\x1b[97;41m" + msg1.PadRight(maxLen) + TetrisColors.AnsiReset);
@@ -131,28 +160,37 @@ namespace PSTetris.Rendering
 
         public void Cleanup()
         {
-            Console.SetCursorPosition(0, _boardHeight + 3);
             Console.Write(TetrisColors.AnsiReset);
             Console.CursorVisible = true;
+
+            // Return to the original screen buffer
+            if (_altScreenActive)
+            {
+                Console.Write("\x1b[?1049l");
+                _altScreenActive = false;
+            }
         }
 
         private void DrawBorder()
         {
+            int boardCols = _boardWidth * 2 * _scale;
+            int boardRows = _boardHeight * _scale;
+
             Console.Write(TetrisColors.AnsiBorder);
 
             Console.SetCursorPosition(0, 0);
-            Console.Write("\u2554" + new string('\u2550', _boardWidth * 2) + "\u2557");
+            Console.Write("\u2554" + new string('\u2550', boardCols) + "\u2557");
 
-            for (int r = 0; r < _boardHeight; r++)
+            for (int r = 0; r < boardRows; r++)
             {
                 Console.SetCursorPosition(0, r + 1);
                 Console.Write("\u2551");
-                Console.SetCursorPosition(_boardWidth * 2 + 1, r + 1);
+                Console.SetCursorPosition(boardCols + 1, r + 1);
                 Console.Write("\u2551");
             }
 
-            Console.SetCursorPosition(0, _boardHeight + 1);
-            Console.Write("\u255a" + new string('\u2550', _boardWidth * 2) + "\u255d");
+            Console.SetCursorPosition(0, boardRows + 1);
+            Console.Write("\u255a" + new string('\u2550', boardCols) + "\u255d");
 
             Console.Write(TetrisColors.AnsiReset);
         }

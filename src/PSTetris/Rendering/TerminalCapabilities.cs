@@ -52,6 +52,88 @@ namespace PSTetris.Rendering
         }
 
         /// <summary>
+        /// Detects terminal dimensions in both characters and pixels.
+        /// Pixel dimensions are obtained via CSI 14t probe; falls back to estimation.
+        /// </summary>
+        public static void DetectTerminalSize(out int cols, out int rows,
+                                               out int pixelW, out int pixelH)
+        {
+            cols = Console.WindowWidth;
+            rows = Console.WindowHeight;
+
+            pixelW = 0;
+            pixelH = 0;
+
+            if (!Console.IsInputRedirected && !Console.IsOutputRedirected)
+            {
+                ProbePixelSize(out pixelW, out pixelH);
+            }
+
+            // Fallback: estimate from character dimensions
+            if (pixelW <= 0 || pixelH <= 0)
+            {
+                pixelW = cols * 8;
+                pixelH = rows * 16;
+            }
+        }
+
+        /// <summary>
+        /// Probes terminal pixel size using CSI 14t.
+        /// Response format: ESC[4;&lt;height&gt;;&lt;width&gt;t
+        /// </summary>
+        private static void ProbePixelSize(out int pixelW, out int pixelH)
+        {
+            pixelW = 0;
+            pixelH = 0;
+            try
+            {
+                while (Console.KeyAvailable)
+                    Console.ReadKey(intercept: true);
+
+                Console.Write("\x1b[14t");
+
+                var response = new StringBuilder();
+                var deadline = DateTime.UtcNow.AddMilliseconds(500);
+
+                while (DateTime.UtcNow < deadline)
+                {
+                    if (Console.KeyAvailable)
+                    {
+                        var key = Console.ReadKey(intercept: true);
+                        response.Append(key.KeyChar);
+                        if (key.KeyChar == 't' && response.Length > 2)
+                            break;
+                    }
+                    else
+                    {
+                        Thread.Sleep(10);
+                    }
+                }
+
+                string resp = response.ToString();
+                // Expected: ESC[4;<height>;<width>t
+                int idx4 = resp.IndexOf('4');
+                int idxT = resp.LastIndexOf('t');
+                if (idx4 < 0 || idxT <= idx4) return;
+
+                string body = resp.Substring(idx4 + 1, idxT - idx4 - 1);
+                // body should be ";<height>;<width>"
+                string[] parts = body.Split(';');
+                if (parts.Length >= 3 &&
+                    int.TryParse(parts[1].Trim(), out int h) &&
+                    int.TryParse(parts[2].Trim(), out int w))
+                {
+                    pixelH = h;
+                    pixelW = w;
+                }
+            }
+            catch
+            {
+                // Probe failed, leave at 0
+            }
+        }
+
+        /// <summary>
         /// Sends a DA1 query (ESC[c) and checks for Sixel attribute (4).
         /// Returns true/false if a definitive answer is obtained,
         /// or null if the probe was inconclusive (no response / timeout).
