@@ -127,3 +127,5 @@ Terminal support is detected automatically via the `TERM_PROGRAM` environment va
 ## License
 
 See [LICENSE](LICENSE).
+
+Its really cool.. plz like and subscribe.
